@@ -1,16 +1,18 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import pydeck as pdk  # <--- IMPORT BARU (WAJIB)
 import ast
 from collections import Counter
 import numpy as np
+import pydeck as pdk 
+
 
 # --- 1. KONFIGURASI HALAMAN (WAJIB PALING ATAS) ---
 st.set_page_config(
     page_title="Dashboard Analisis Loker IT Jawa",
     page_icon="💼",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed" # Default sidebar tertutup
 )
 
 # --- 2. PERSIAPAN DATA ---
@@ -40,7 +42,7 @@ koordinat_kota = {
     "Jawa Tengah": [-7.1510, 110.1403],
     "Jawa Timur": [-7.5360, 112.2384],
     "Bali": [-8.4095, 115.1889],
-    "Lokasi Lain": [-7.35, 110.00] # Default tengah jawa
+    "Lokasi Lain": [-7.35, 110.00] 
 }
 
 def get_lat(kota):
@@ -52,106 +54,96 @@ def get_lon(kota):
 # B. LOAD DATA CSV
 @st.cache_data
 def load_data():
-    # Ganti path ini sesuai file Anda
     df = pd.read_csv("data/data_loker_super_bersih_jawa.csv")
-    
-    # Konversi kolom 'list_skill' dari string ke list python
     df['list_skill'] = df['list_skill'].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else [])
-    
-    # Isi missing value
     df['pendidikan_clean'] = df['pendidikan_clean'].fillna("Tidak Disebutkan")
     df['kota'] = df['kota'].fillna("Lokasi Lain")
-    
     return df
 
 try:
     df = load_data()
 except FileNotFoundError:
-    st.error("File CSV tidak ditemukan! Pastikan struktur foldernya benar.")
+    st.error("File tidak ditemukan!")
     st.stop()
 
-# --- 3. SIDEBAR (FILTER) ---
-st.sidebar.header("🔍 Filter Dashboard")
+# --- 3. TITLE & FILTER (DI BAGIAN ATAS HALAMAN) ---
+st.title("📊 Dashboard Pasar Kerja IT (Data Bersih)")
 
-# Filter Kategori
-kategori_list = sorted(df['kategori_posisi'].unique().tolist())
-selected_kategori = st.sidebar.multiselect("Pilih Kategori Posisi", kategori_list, default=kategori_list)
+# Buat Container Filter yang rapi dengan Expander (Opsional, agar tidak menuhin layar)
+# Atau bisa langsung st.columns jika ingin selalu terlihat.
+with st.container():
+    st.subheader("🔍 Filter Data")
+    
+    # Bagi layar jadi 3 kolom untuk filter
+    col_filter1, col_filter2, col_filter3 = st.columns(3)
 
-# Filter Kota
-kota_list = sorted(df['kota'].unique().tolist())
-selected_kota = st.sidebar.multiselect("Pilih Kota", kota_list, default=kota_list) 
+    kategori_list = sorted(df['kategori_posisi'].unique().tolist())
+    kota_list = sorted(df['kota'].unique().tolist())
+    pendidikan_list = sorted(df['pendidikan_clean'].unique().tolist())
 
-# Filter Pendidikan
-pendidikan_list = sorted(df['pendidikan_clean'].unique().tolist())
-selected_pendidikan = st.sidebar.multiselect("Pilih Pendidikan", pendidikan_list, default=pendidikan_list)
+    with col_filter1:
+        selected_kategori = st.multiselect("Posisi / Kategori", kategori_list)
+    
+    with col_filter2:
+        selected_kota = st.multiselect("Lokasi Kota", kota_list)
+        
+    with col_filter3:
+        selected_pendidikan = st.multiselect("Pendidikan Terakhir", pendidikan_list)
 
-# Logika "Select All" jika kosong
+# Logika Filter
 if not selected_kategori: selected_kategori = kategori_list
 if not selected_kota: selected_kota = kota_list
 if not selected_pendidikan: selected_pendidikan = pendidikan_list
 
-# TERAPKAN FILTER
 filtered_df = df[
     (df['kategori_posisi'].isin(selected_kategori)) & 
     (df['kota'].isin(selected_kota)) &
     (df['pendidikan_clean'].isin(selected_pendidikan))
 ]
 
+st.divider() # Garis pembatas antara Filter dan Konten
+
 # --- 4. DASHBOARD UTAMA ---
-st.title("📊 Dashboard Pasar Kerja IT (Data Bersih)")
 st.markdown(f"Menampilkan **{len(filtered_df)}** lowongan dari total **{len(df)}** data.")
 
-# A. METRICS (KPI)
+# A. METRICS
 col1, col2, col3, col4 = st.columns(4)
-
 with col1:
     st.metric("Total Lowongan", len(filtered_df))
-
 with col2:
     df_gaji = filtered_df.dropna(subset=['gaji_angka'])
     avg_gaji = df_gaji['gaji_angka'].mean()
-    if pd.notna(avg_gaji):
-        gaji_fmt = f"Rp {avg_gaji/1_000_000:.1f} Juta" 
-        st.metric("Rata-rata Gaji", gaji_fmt)
-    else:
-        st.metric("Rata-rata Gaji", "Data Kosong")
-
+    val = f"Rp {avg_gaji/1_000_000:.1f} Juta" if pd.notna(avg_gaji) else "Data Kosong"
+    st.metric("Rata-rata Gaji", val)
 with col3:
     top_company = filtered_df['Perusahaan'].mode()[0] if not filtered_df.empty else "-"
     st.metric("Top Company", top_company)
-
 with col4:
     top_posisi = filtered_df['Posisi'].mode()[0] if not filtered_df.empty else "-"
     st.metric("Posisi Terbanyak", top_posisi)
 
 st.divider()
 
-# --- B. PETA PERSEBARAN (SOLUSI 3D PYDECK TERINTEGRASI) ---
+# B. PETA PERSEBARAN
 st.subheader("🗺️ Peta Persebaran Lowongan (Pulau Jawa)")
 
-# Fungsi Jitter
 def apply_jitter(coord, amount=0.015): 
     return coord + np.random.uniform(-amount, amount)
 
-# Siapkan data peta dasar
 df_map = filtered_df.copy()
 map_data = df_map.groupby(['kota', 'kategori_posisi']).size().reset_index(name='Jumlah')
 map_data['lat'] = map_data['kota'].apply(get_lat)
 map_data['lon'] = map_data['kota'].apply(get_lon)
 map_data = map_data.dropna(subset=['lat', 'lon']) 
 
-# Opsi Tampilan (MENAMBAHKAN OPSI 3D)
-view_mode = st.radio(
-    "Mode Tampilan Peta:", 
-    [ "Total per Kota (3D)", "Detail per Kategori (Scatter Plotly)"], 
-    horizontal=True
-)
+map_data['lat_jitter'] = map_data['lat'].apply(lambda x: apply_jitter(x))
+map_data['lon_jitter'] = map_data['lon'].apply(lambda x: apply_jitter(x))
 
+view_mode = st.radio("Mode Tampilan:", ["Total per Kota (3D)", "Detail (Scatter)"], horizontal=True)
 center_java = {"lat": -7.35, "lon": 110.00}
 
 if not map_data.empty:
-    
-    # --- LOGIKA TAMPILAN 3D PYDECK ---
+     # --- LOGIKA TAMPILAN 3D PYDECK ---
     if view_mode == "Total per Kota (3D)":
         
         # 1. Agregasi data khusus untuk 3D (Group by Kota only)
@@ -202,17 +194,12 @@ if not map_data.empty:
         
         st.pydeck_chart(r)
         st.caption("ℹ️ **Tips:** Tahan klik kanan pada mouse untuk memutar (rotate) peta 3D.")
-        
-    else: # Scatter
-        # Terapkan jitter hanya untuk mode scatter
-        map_data['lat_jitter'] = map_data['lat'].apply(lambda x: apply_jitter(x))
-        map_data['lon_jitter'] = map_data['lon'].apply(lambda x: apply_jitter(x))
-        
+    else: 
         fig_map = px.scatter_mapbox(
-            map_data, lat="lat_jitter", lon="lon_jitter",
-            size="Jumlah", color="kategori_posisi", hover_name="kota",
-            zoom=6.2, center=center_java, size_max=40, opacity=0.8,
-            mapbox_style="carto-positron", title="Sebaran Kategori", height=600
+            map_data, lat="lat_jitter", lon="lon_jitter", size="Jumlah", color="kategori_posisi",
+            hover_name="kota", hover_data=["kategori_posisi", "Jumlah"],
+            zoom=6.2, center=center_java, size_max=60, opacity=0.8,
+            mapbox_style="carto-positron", height=600
         )
         st.plotly_chart(fig_map, use_container_width=True)
 else:
@@ -220,67 +207,59 @@ else:
 
 st.divider()
 
-# --- C. ANALISIS GAJI ---
+# C. ANALISIS GAJI
 st.subheader("💰 Analisis Gaji")
-
 if not df_gaji.empty:
     col_gaji_1, col_gaji_2 = st.columns(2)
     with col_gaji_1:
-        fig_hist = px.histogram(
-            df_gaji, x="gaji_angka", nbins=20, 
-            title="Distribusi Gaji (Histogram)",
-            color_discrete_sequence=['#2ecc71']
-        )
+        fig_hist = px.histogram(df_gaji, x="gaji_angka", nbins=20, title="Distribusi Gaji", color_discrete_sequence=['#2ecc71'])
         st.plotly_chart(fig_hist, use_container_width=True)
     with col_gaji_2:
         top_kategori = df_gaji['kategori_posisi'].value_counts().nlargest(10).index
-        df_gaji_top = df_gaji[df_gaji['kategori_posisi'].isin(top_kategori)]
-        fig_box = px.box(
-            df_gaji_top, x="kategori_posisi", y="gaji_angka", 
-            title="Range Gaji per Kategori", color="kategori_posisi"
-        )
+        fig_box = px.box(df_gaji[df_gaji['kategori_posisi'].isin(top_kategori)], x="kategori_posisi", y="gaji_angka", title="Range Gaji per Kategori", color="kategori_posisi")
         st.plotly_chart(fig_box, use_container_width=True)
 else:
     st.info("Tidak ada data gaji.")
 
 st.divider()
 
-# --- D. ANALISIS SKILL ---
+# D. ANALISIS SKILL
 st.subheader("🛠️ Skill Paling Dibutuhkan")
-all_skills = []
-for skills in filtered_df['list_skill']:
-    all_skills.extend(skills)
+all_skills = [s for skills in filtered_df['list_skill'] for s in skills]
 skill_counts = pd.DataFrame(Counter(all_skills).most_common(15), columns=['Skill', 'Jumlah'])
 
 if not skill_counts.empty:
-    fig_skill = px.bar(
-        skill_counts, x='Jumlah', y='Skill', orientation='h', 
-        title="Top 15 Technical Skills", text='Jumlah',
-        color='Jumlah', color_continuous_scale='Bluered_r'
-    )
+    fig_skill = px.bar(skill_counts, x='Jumlah', y='Skill', orientation='h', title="Top 15 Skills", color='Jumlah', color_continuous_scale='Bluered_r')
     fig_skill.update_layout(yaxis={'categoryorder':'total ascending'})
     st.plotly_chart(fig_skill, use_container_width=True)
-else:
-    st.warning("Tidak ada data skill.")
 
 st.divider()
 
-# --- E. ANALISIS LOKASI & PENDIDIKAN ---
+# --- E. LOKASI & PENDIDIKAN ---
 col_left, col_right = st.columns(2)
+
 with col_left:
-    st.subheader("📍 Top 10 Lokasi")
-    loc_counts = filtered_df['kota'].value_counts().head(10).reset_index()
-    loc_counts.columns = ['Kota', 'Jumlah']
-    fig_loc = px.bar(loc_counts, x='Kota', y='Jumlah', color='Kota')
+    st.subheader("📍 Top 10 Lokasi Lowongan")
+    # Hitung jumlah per kota
+    loc_data = filtered_df['kota'].value_counts().head(10).reset_index()
+    # Rename kolom agar konsisten: Kolom 0 jadi 'Kota', Kolom 1 jadi 'Jumlah'
+    loc_data.columns = ['Kota', 'Jumlah']
+    
+    # Perbaikan: Gunakan 'Kota' sebagai x, bukan 'index'
+    fig_loc = px.bar(loc_data, x='Kota', y='Jumlah', color='Kota')
     st.plotly_chart(fig_loc, use_container_width=True)
 
 with col_right:
-    st.subheader("🎓 Pendidikan")
-    edu_counts = filtered_df['pendidikan_clean'].value_counts().reset_index()
-    edu_counts.columns = ['Pendidikan', 'Jumlah']
-    fig_edu = px.pie(edu_counts, values='Jumlah', names='Pendidikan', hole=0.4)
+    st.subheader("🎓 Kualifikasi Pendidikan")
+    # Hitung jumlah per pendidikan
+    edu_data = filtered_df['pendidikan_clean'].value_counts().reset_index()
+    # Rename kolom agar konsisten
+    edu_data.columns = ['Pendidikan', 'Jumlah']
+    
+    # Perbaikan: Gunakan 'Pendidikan' sebagai names, bukan 'index'
+    fig_edu = px.pie(edu_data, values='Jumlah', names='Pendidikan', hole=0.4)
     st.plotly_chart(fig_edu, use_container_width=True)
 
-# --- F. TABEL DATA ---
+# F. TABEL DATA
 with st.expander("Lihat Data Mentah"):
-    st.dataframe(filtered_df[['Posisi', 'Perusahaan', 'kota', 'gaji_angka', 'list_skill', 'pendidikan_clean']], use_container_width=True)
+    st.dataframe(filtered_df, use_container_width=True)
