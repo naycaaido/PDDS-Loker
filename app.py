@@ -95,7 +95,7 @@ def get_lon(kota): return koordinat_kota.get(kota, [None, None])[1]
 # B. LOAD DATA
 @st.cache_data
 def load_data():
-    df = pd.read_csv("data/data_loker_super_bersih_jawa.csv")
+    df = pd.read_csv("data_loker_clean.csv")
     df['list_skill'] = df['list_skill'].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else [])
     df['pendidikan_clean'] = df['pendidikan_clean'].fillna("Tidak Disebutkan")
     df['kota'] = df['kota'].fillna("Lokasi Lain")
