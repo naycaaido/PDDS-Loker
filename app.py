@@ -117,7 +117,7 @@ with st.container(border=True):
     c1, c2, c3 = st.columns(3)
     
     kategori_list = sorted(df['kategori_posisi'].unique().tolist())
-    kota_list = sorted(df['kota'].unique().tolist())
+    provinsi_list = sorted(df['provinsi'].unique().tolist())
     pendidikan_list = sorted(df['pendidikan_clean'].unique().tolist())
 
     with c1:
@@ -125,8 +125,8 @@ with st.container(border=True):
         selected_kategori = st.multiselect("Posisi", kategori_list, label_visibility="collapsed")
     
     with c2:
-        st.markdown(f"**{icon('location_on')} Lokasi Kota**", unsafe_allow_html=True)
-        selected_kota = st.multiselect("Lokasi", kota_list, label_visibility="collapsed")
+        st.markdown(f"**{icon('location_on')} Provinsi**", unsafe_allow_html=True)
+        selected_provinsi = st.multiselect("Provinsi", provinsi_list, label_visibility="collapsed")
         
     with c3:
         st.markdown(f"**{icon('school')} Pendidikan**", unsafe_allow_html=True)
@@ -134,12 +134,12 @@ with st.container(border=True):
 
 # Logic Filter
 if not selected_kategori: selected_kategori = kategori_list
-if not selected_kota: selected_kota = kota_list
+if not selected_provinsi: selected_provinsi = provinsi_list
 if not selected_pendidikan: selected_pendidikan = pendidikan_list
 
 filtered_df = df[
     (df['kategori_posisi'].isin(selected_kategori)) & 
-    (df['kota'].isin(selected_kota)) &
+    (df['provinsi'].isin(selected_provinsi)) &
     (df['pendidikan_clean'].isin(selected_pendidikan))
 ]
 
