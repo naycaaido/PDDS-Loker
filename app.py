@@ -8,6 +8,11 @@ import pydeck as pdk
 from scrapping.kalibrr_script import run_scraper as run_scraper_kalibrr
 from scrapping.lokerid_script import run_scraper as run_scraper_lokerid
 import time 
+import warnings
+
+# Suppress PyDeck deprecation warnings in Streamlit logs
+warnings.filterwarnings("ignore", category=UserWarning, module="streamlit")
+warnings.filterwarnings("ignore", message=".*use_container_width.*") 
 
 # --- 1. KONFIGURASI HALAMAN ---
 st.set_page_config(
@@ -144,7 +149,8 @@ with st.sidebar:
                 
                 # --- PREVIEW DATA ---
                 with st.expander("🔍 Preview Hasil Scraping (Terbaru)", expanded=True):
-                    st.dataframe(new_data[['Perusahaan', 'Posisi', 'gaji_angka']], use_container_width=True, hide_index=True)
+                    # use_container_width=True is deprecated in some versions, changed to width (or removed if auto)
+                    st.dataframe(new_data[['Perusahaan', 'Posisi', 'gaji_angka']], hide_index=True)
             else:
                 st.warning("Gagal mengambil data atau tidak ada data baru.")
 

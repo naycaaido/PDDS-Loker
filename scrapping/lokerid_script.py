@@ -2,16 +2,14 @@ import time
 import json
 import re
 import pandas as pd
-import requests
 import random
 from bs4 import BeautifulSoup
-from concurrent.futures import ThreadPoolExecutor
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 
 # --- 1. KONFIGURASI ---
 BASE_URL = "https://www.loker.id/lowongan-kerja/information-technology"
-MAX_PAGES = 100         # Scrape halaman 1 sampai 10
-MAX_WORKERS = 2        # Thread worker untuk detail processing
-OUTPUT_FILE = "data_lokerid_fixed.csv"    
+OUTPUT_FILE = "data_lokerid_fixed.csv"
 
 # --- 2. KAMUS DATA & HELPER (FROM KALIBRR & LOKERID) ---
 def get_provinsi(kota):
@@ -44,57 +42,30 @@ def get_provinsi(kota):
     return "Lainnya"
 
 IT_SKILLS_DATABASE = {
-    # --- PROGRAMMING LANGUAGES ---
     "python", "java", "c++", "c#", "golang", "php", "ruby", "swift", "kotlin", "typescript", 
     "javascript", "html", "css", "r", "dart", "matlab", "scala", "rust", "shell", "bash", "perl", "lua", "assembly",
-    # --- FRAMEWORKS & LIBRARIES ---
     "react", "angular", "vue", "node.js", "django", "flask", "spring boot", "laravel", "codeigniter",
     "flutter", "react native", "next.js", "nuxt.js", "express.js", "pandas", "numpy", "tensorflow", 
     "pytorch", "keras", "scikit-learn", "dotnet", ".net", "jquery", "bootstrap", "tailwind", "fastapi", "hibernate",
-    # --- DATABASE (SQL & NoSQL) ---
     "sql", "mysql", "postgresql", "mongodb", "oracle", "redis", "firebase", "elasticsearch", 
     "sql server", "mariadb", "sqlite", "cassandra", "dynamodb", "couchdb", "neo4j", "hbase", "realm",
-    # --- CLOUD & DEVOPS ---
-    "aws", "azure", "google cloud", "gcp", "docker", "kubernetes", "jenkins", "terraform", 
-    "git", "github", "gitlab", "bitbucket", "linux", "ubuntu", "centos", "redhat", "nginx", "apache", 
-    "ci/cd", "ansible", "circleci", "prometheus", "grafana", "elk stack", "openshift", "helm", "vagrant",
-    # --- DATA & AI ---
-    "snowflake", "bigquery", "redshift", "databricks", "azure synapse", "teradata", "vertica",
-    "airflow", "dbt", "luigi", "prefect", "glue", "athena", "kinesis", "kafka", "rabbitmq", "pub/sub",
-    "tableau", "power bi", "looker", "qlikview", "qlik sense", "sas", "spss", "excel", "google data studio",
-    "big data", "hadoop", "spark", "pyspark", "hive", "pig", "impala", "flink",
-    "machine learning", "deep learning", "nlp", "computer vision", "generative ai", "llm",
-    "hugging face", "openai", "langchain", "mlflow", "kubeflow", "sagemaker", "vertex ai", 
-    "jupyter", "colab", "opencv", "yolo", "ocr",
-    # --- NETWORKING ---
-    "CCNA", "CCNP", "CCIE", "CCDP", "CCDE", "CCAr",
-    "JNCIA", "JNCIS", "JNCIP", "JNCIE",
-    "MTCNA", "MTCRE", "MTCINE",
-    "NSE1", "NSE2", "NSE3", "NSE4", "NSE7", "NSE8",
-    "PCNSA", "PCNSE",
-    "COMPTIA NETWORK+", "COMPTIA SECURITY+", "CISSP", "CISM", "CEH", "OSCP", "CISA",
-    "tcp/ip", "dns", "dhcp", "bgp", "ospf", "eigrp", "rip", "mpls", "vlan", "vxlan", "sd-wan", 
-    "vpn", "ipsec", "ssl/tls", "stp", "rstp", "nat", "pat", "qos", "ipv4", "ipv6", "subnetting",
-    "routing", "switching", "osi model", "voip", "sip", "wan", "lan", "wlan", "man",
-    "cisco", "juniper", "mikrotik", "fortinet", "palo alto", "aruba", "ubiquiti", "unifi", 
-    "f5", "citrix", "arista", "ruckus", "tplink", "huawei", "dell networking", "barracuda",
-    "wireshark", "packet tracer", "gns3", "eve-ng", "nmap", "solarwinds", "prtg", "nagios", 
-    "zabbix", "cacti", "netcat", "tcpdump", "iperf", "putty", "crt", "winbox", "ping", "traceroute",
-    # --- NETWORK SECURITY ---
-    "cybersecurity", "penetration testing", "firewall", "next-gen firewall", "ngfw", "ids", "ips", 
-    "siem", "splunk", "wazuh", "nessus", "metasploit", "burp suite", "kalilinux", "soc", 
-    "incident response", "forensics", "zero trust", "waf", "ddos protection",
-    # --- IOT & HARDWARE ---
-    "iot", "arduino", "raspberry pi", "embedded systems", "microcontroller", "mqtt", "coap",
-    "fpga", "plc", "scada", "hmi", "pcb", "stm32", "esp32", "esp8266", "verilog", "vhdl",
-    # --- TOOLS & METHODOLOGIES ---
-    "jira", "trello", "asana", "confluence", "notion",
-    "agile", "scrum", "kanban", "waterfall", "sdlc", "devops",
-    "qa", "selenium", "appium", "cypress", "junit", "postman", "soapui",
-    "figma", "adobe xd", "sketch", "invision", "zeplin"
+    "aws", "azure", "google cloud", "docker", "kubernetes", "jenkins", "git", "github", "gitlab", 
+    "linux", "unix", "ci/cd", "terraform", "ansible", "nginx", "apache", "jira", "agile", "scrum", "devops",
+    "machine learning", "artificial intelligence", "data science", "big data", "nlp", "computer vision", 
+    "blockchain", "iot", "cyber security", "penetration testing", "network security", "cloud computing",
+    "sales", "marketing", "business analyst", "project manager", "product manager", "ui/ux", "graphic design"
 }
 
-SPECIAL_SKILLS = {"c": r"\bc\b", "go": r"\bgo\b", ".net": r"\.net", "c#": r"c#", "c++": r"c\+\+"}
+SPECIAL_SKILLS = {
+    "c": r"\bc\b", # Added 'c' as it's a single letter
+    "go": r"\bgo\b", # Added 'go' as it's a single letter
+    ".net": r"\.net",
+    "c#": r"c#",
+    "c++": r"c\+\+",
+    "node.js": r"node\.js",
+    "react native": r"react\s+native",
+    "vue.js": r"vue\.js|vuejs",
+}
 
 def determine_category(title):
     title_lower = str(title).lower()
@@ -116,7 +87,7 @@ def extract_skills(text):
     text_lower = str(text).lower()
     found_skills = set()
     for skill in IT_SKILLS_DATABASE:
-        if len(skill) > 2 and skill not in SPECIAL_SKILLS:
+        if len(skill) > 2 and skill not in SPECIAL_SKILLS: # Check if skill is not in SPECIAL_SKILLS to avoid double processing
             if re.search(r"\b" + re.escape(skill) + r"\b", text_lower):
                 found_skills.add(skill)
     for skill, pattern in SPECIAL_SKILLS.items():
@@ -220,58 +191,37 @@ def parse_salary_average(text):
     except Exception:
         return None
 
-# --- 3. TAHAP 1: HARVEST URL ---
-def harvest_data(max_pages, search_query=None):
-    print(f"🚜 HARVESTING: Mengambil data dari {max_pages} halaman...")
-    
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Referer': 'https://www.loker.id/',
-        'Accept-Language': 'en-US,en;q=0.9'
-    }
+# --- 3. TAHAP 1: HARVEST URL (SELENIUM) ---
+def harvest_data(driver, max_pages, search_query=None):
+    print(f"🚜 HARVESTING: Mengambil data dari {max_pages} halaman (Mode: Selenium)...")
     harvested_items = []
     
     # Base URL Determination
     if search_query:
-        # Format: https://www.loker.id/cari-lowongan-kerja/page/{page}?q={query}&category=information-technology
         base_search_url = "https://www.loker.id/cari-lowongan-kerja"
-        print(f"   🔎 Mode Pencarian: '{search_query}' (Kategori IT)")
     else:
-        # Format: https://www.loker.id/lowongan-kerja/information-technology/page/{page}
-        base_default_url = "https://www.loker.id/lowongan-kerja/information-technology"
-        print("   📂 Mode Default: List Lowongan IT Terbaru")
-
+        base_default_url = BASE_URL
+        
     for page in range(1, max_pages + 1):
         if search_query:
-            # Construct Search URL
-            # Note: Pagination for search results usually looks like /cari-lowongan-kerja/page/2?q=...
-            if page == 1:
-                url_target = f"{base_search_url}?q={search_query}&category=information-technology"
-            else:
-                url_target = f"{base_search_url}/page/{page}?q={search_query}&category=information-technology"
+            # https://www.loker.id/cari-lowongan-kerja/page/1?q=python&category=information-technology
+            url_target = f"{base_search_url}/page/{page}?q={search_query}&category=information-technology"
         else:
-            # Construct Default URL
-            if page == 1:
-                url_target = base_default_url
-            else:
-                url_target = f"{base_default_url}/page/{page}"
-
-        print(f"   >> Halaman {page}/{max_pages}: {url_target}")
+            url_target = f"{base_default_url}/page/{page}"
+            
+        print(f"   📄 Mengakses Halaman {page}: {url_target}")
         
         try:
-            resp = requests.get(url_target, headers=headers, timeout=20)
-            if resp.status_code != 200:
-                print(f"   [!] Gagal Halaman {page}: Status {resp.status_code}")
-                continue
+            driver.get(url_target)
+            time.sleep(random.uniform(2, 4)) # Allow content to load
             
-            soup = BeautifulSoup(resp.content, "html.parser")
-            cards = soup.find_all('article', class_='card')
+            soup = BeautifulSoup(driver.page_source, "html.parser")
+            cards = soup.find_all('article', class_='card') # Changed to 'article' and 'card' based on current Loker.id structure
             
             if not cards:
-                print(f"   [!] Tidak ada data di halaman {page}. Mungkin halaman habis.")
+                print(f"   ⚠️ Halaman {page} kosong atau struktur berubah.")
                 break
-
+                
             for card in cards:
                 try:
                     link_tag = card.find('a', href=True)
@@ -288,7 +238,7 @@ def harvest_data(max_pages, search_query=None):
                     
                     loc_tag = card.find('span', attrs={'translate': 'no'})
                     lokasi = loc_tag.text.strip() if loc_tag else "Indonesia"
-                    
+
                     harvested_items.append({
                         "link": job_url,
                         "posisi": posisi,
@@ -296,31 +246,25 @@ def harvest_data(max_pages, search_query=None):
                         "lokasi": lokasi
                     })
                 except Exception:
-                    continue
-            
-            time.sleep(1) # Polite sleep
-            
+                    continue # Skip broken card
+                    
         except Exception as e:
-            print(f"   [!] Error Halaman {page}: {e}")
+            print(f"   ❌ Error Halaman {page}: {e}")
+            break
             
     print(f"✅ HARVEST SELESAI: {len(harvested_items)} lowongan ditemukan.\n")
     return harvested_items
 
-# --- 4. TAHAP 2: PROCESSING ---
-def process_single_item(item):
+# --- 4. TAHAP 2: PROCESSING (SELENIUM SEQUENTIAL) ---
+def process_single_item(driver, item):
     url = item['link']
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Referer': 'https://www.loker.id/',
-        'Accept-Language': 'en-US,en;q=0.9'
-    }
+    print(f"   🔍 Processing: {item['posisi']}")
     
     try:
-        # PENTING: Loker.id bisa memblokir jika terlalu agresif, gunakan sleep jika perlu di dalam thread
-        time.sleep(random.uniform(0.5, 1.5)) 
+        driver.get(url)
+        time.sleep(random.uniform(1.5, 3.0)) # Polite wait
         
-        response = requests.get(url, headers=headers, timeout=15)
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
         
         # Default data
         perusahaan = item['perusahaan']
@@ -331,56 +275,52 @@ def process_single_item(item):
         jenis = "Full Time" 
         deskripsi_full = ""
         
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.content, 'html.parser')
+        # --- EKSTRAKSI (Sama logicnya, cuma source dari selenium) ---
+        
+        # 1. Gaji (Parse Average)
+        raw_gaji = get_info_by_icon_or_label(soup, ["Gaji", "Salary", "IDR", "Rp"])
+        if raw_gaji != "Hidden/Tidak Disebutkan":
+            # Parse "Rp 5.5 - 6 Juta" -> 5750000
+            gaji_angka = parse_salary_average(raw_gaji)
+        
+        # 2. Tipe Pekerjaan -> map ke 'jenis'
+        raw_jenis = get_info_by_icon_or_label(soup, ["Tipe Pekerjaan", "Job Type", "Status"])
+        if raw_jenis != "Hidden/Tidak Disebutkan":
+            jenis = raw_jenis
+        
+        # 3. Pendidikan
+        raw_pendidikan = get_info_by_icon_or_label(soup, ["Pendidikan", "Education", "Degree"])
+        if raw_pendidikan != "Hidden/Tidak Disebutkan":
+            pendidikan = simplify_education(raw_pendidikan)
             
-            # --- EKSTRAKSI ALA lokerid_scrapping.py ---
-            
-            # 1. Gaji (Parse Average)
-            raw_gaji = get_info_by_icon_or_label(soup, ["Gaji", "Salary", "IDR", "Rp"])
-            if raw_gaji != "Hidden/Tidak Disebutkan":
-                # Parse "Rp 5.5 - 6 Juta" -> 5750000
-                gaji_angka = parse_salary_average(raw_gaji)
-            
-            # 2. Tipe Pekerjaan -> map ke 'jenis'
-            raw_jenis = get_info_by_icon_or_label(soup, ["Tipe Pekerjaan", "Job Type", "Status"])
-            if raw_jenis != "Hidden/Tidak Disebutkan":
-                jenis = raw_jenis
-            
-            # 3. Pendidikan
-            raw_pendidikan = get_info_by_icon_or_label(soup, ["Pendidikan", "Education", "Degree"])
-            if raw_pendidikan != "Hidden/Tidak Disebutkan":
-                pendidikan = simplify_education(raw_pendidikan)
-                
-            # 4. Kualifikasi & Deskripsi untuk Skill Mining
-            kualifikasi = get_kualifikasi_list(soup)
-            
-            desc_container = soup.find('div', id='description')
-            if not desc_container:
-                # Fallback logic
-                potential_divs = soup.find_all('div', class_=False)
-                max_len = 0
-                for div in potential_divs:
-                    text_len = len(div.get_text())
-                    if text_len > max_len and text_len > 200:
-                        desc_container = div
-                        max_len = text_len
-            
-            deskripsi_body = desc_container.get_text(" ", strip=True) if desc_container else ""
-            deskripsi_full = f"{deskripsi_body} {kualifikasi}"
+        # 4. Kualifikasi & Deskripsi untuk Skill Mining
+        kualifikasi = get_kualifikasi_list(soup)
+        
+        desc_container = soup.find('div', id='description')
+        if not desc_container:
+            # Fallback logic
+            potential_divs = soup.find_all('div', class_=False)
+            max_len = 0
+            for div in potential_divs:
+                text_len = len(div.get_text())
+                if text_len > max_len and text_len > 200:
+                    desc_container = div
+                    max_len = text_len
+        
+        deskripsi_body = desc_container.get_text(" ", strip=True) if desc_container else ""
+        deskripsi_full = f"{deskripsi_body} {kualifikasi}"
 
         # --- FINAL PROCESSING & MAPPING ---
         skills_found = extract_skills(deskripsi_full)
         provinsi = get_provinsi(kota_raw)
         kategori = determine_category(posisi)
         
-        # Mapping ke format Kalibrr
         return {
             "Perusahaan": perusahaan,
             "Posisi": posisi,
             "kategori_posisi": kategori,
             "kota": kota_raw,
-            "gaji_angka": gaji_angka,     # Updated to use calculated average (int/float)
+            "gaji_angka": gaji_angka,     
             "list_skill": str(skills_found),
             "pendidikan": pendidikan,
             "jenis": jenis,
@@ -404,49 +344,59 @@ def process_single_item(item):
         }
 
 # --- 5. MAIN / EXPORTED FUNCTION ---
-
 def run_scraper(target_count=10, search_query=None):
     """
-    Menjalankan scraper dengan target jumlah data tertentu (estimasi via halaman).
-    1 Halaman Loker.id biasanya ~10-20 item. 
-    Jadi kita hitung MAX_PAGES berdasarkan target_count.
+    Menjalankan scraper Loker.id menggunakan Selenium (Sequential Mode untuk VPS).
     """
     start_time = time.time()
     
-    # Estimasi 1 halaman = 15 data. 
-    # Jika target 10, butuh 1 page. Jika target 30, butuh 2 page.
-    max_pages = max(1, -(-target_count // 15)) # Ceiling division
+    # Setup Selenium Driver (VPS Optimized)
+    options = Options()
+    options.add_argument("--headless=new")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-infobars")
     
-    # Tahap 1: Harvest
-    items = harvest_data(max_pages, search_query)
+    driver = webdriver.Chrome(options=options)
     
-    # Potong sesuai target count jika berlebih
-    items = items[:target_count]
-    
-    if not items: 
-        return pd.DataFrame()
+    try:
+        # Estimasi page
+        # Loker.id usually shows 15 jobs per page
+        max_pages = max(1, -(-target_count // 15)) 
+        
+        # Tahap 1: Harvest (Sequential with main driver)
+        items = harvest_data(driver, max_pages, search_query)
+        
+        # Potong sesuai target count
+        items = items[:target_count]
+        
+        if not items: 
+            print("Tidak ada data yang ditemukan untuk diproses.")
+            return pd.DataFrame()
 
-    print(f"🚀 Memproses detail untuk {len(items)} data...")
-    results = []
-    
-    # Tahap 2: Detail Processing (Multi-thread)
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = executor.map(process_single_item, items)
-        for i, res in enumerate(futures):
-            if res:
-                results.append(res)
-                if (i+1) % 5 == 0: print(f"   ...Selesai {i+1}/{len(items)}")
-
-    # Tahap 3: Return DataFrame
-    if results:
-        df = pd.DataFrame(results)
-        print(f"\n🎉 SUKSES! {len(df)} data berhasil diambil.")
-        return df
-    else:
-        return pd.DataFrame()
+        print(f"🚀 Memproses detail untuk {len(items)} data (Sequential)...")
+        results = []
+        
+        # Tahap 2: Detail Processing (Sequential using SAME driver)
+        for i, item in enumerate(items):
+            res = process_single_item(driver, item)
+            results.append(res)
+            print(f"   ...Selesai {i+1}/{len(items)}")
+        
+        # Tahap 3: Return DataFrame
+        if results:
+            df = pd.DataFrame(results)
+            print(f"\n🎉 SUKSES! {len(df)} data berhasil diambil.")
+            return df
+        else:
+            return pd.DataFrame()
+            
+    finally:
+        driver.quit()
 
 if __name__ == "__main__":
     # Test Run
-    df = run_scraper(target_count=5, search_query="python")
+    df = run_scraper(target_count=3, search_query="python")
     print(df.head())
-
