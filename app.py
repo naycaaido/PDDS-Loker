@@ -174,6 +174,43 @@ with st.sidebar:
         st.session_state.uploaded_data = pd.DataFrame()
         st.rerun()
 
+    st.markdown("---")
+
+    # 3. Data Cleaning
+    st.subheader("Cleaning Data")
+    if st.button("Bersihkan & Gabung Data"):
+        with st.spinner("Membersihkan data..."):
+            # Gabungkan dulu semua source
+            combined = pd.concat([st.session_state.scraped_data, st.session_state.uploaded_data], ignore_index=True)
+            
+            if not combined.empty:
+                # 1. Deduplikasi
+                # Prioritas deduplikasi: Link (jika ada), atau kombinasi (Perusahaan, Posisi, Kota)
+                initial_count = len(combined)
+                
+                # Buat temporary column untuk deduplikasi case-insensitive
+                combined['dedup_key'] = combined.apply(
+                    lambda x: str(x['link']) if pd.notna(x['link']) and x['link'] != '' 
+                    else f"{str(x['Perusahaan']).lower()}|{str(x['Posisi']).lower()}", axis=1
+                )
+                
+                combined = combined.drop_duplicates(subset=['dedup_key'])
+                combined = combined.drop(columns=['dedup_key'])
+                
+                # 2. Standardisasi Gaji (Memastikan numerik)
+                combined['gaji_angka'] = pd.to_numeric(combined['gaji_angka'], errors='coerce')
+                
+                # 3. Simpan kembali ke uploaded_data (sebagai wadah data bersih tambahan)
+                # Kita kosongkan scraped_data agar tidak double, semua masuk ke uploaded/tambahan
+                st.session_state.scraped_data = pd.DataFrame() 
+                st.session_state.uploaded_data = combined
+                
+                removed_count = initial_count - len(combined)
+                st.success(f"Pembersihan Selesai! {removed_count} data duplikat dihapus.")
+                st.rerun()
+            else:
+                st.warning("Belum ada data tambahan untuk dibersihkan.")
+
 # C. COMBINE DATA
 base_df = load_base_data()
 if base_df.empty:
@@ -181,6 +218,7 @@ if base_df.empty:
     st.stop()
 
 # Gabungkan data utama + scraped + uploaded
+# Note: Kita lakukan deduplikasi akhir juga dengan base_data untuk view
 df = pd.concat([base_df, st.session_state.scraped_data, st.session_state.uploaded_data], ignore_index=True)
 
 # Preprocessing ulang untuk data gabungan (terutama list_skill)

@@ -19,9 +19,10 @@ Project ini adalah sebuah **Dashboard Interaktif** yang dibangun menggunakan [St
     -   **Top Skill Analysis**: Grafik batang skill teknis yang paling banyak dibutuhkan (hasil text mining dari deskripsi pekerjaan).
     -   **Analisis Pendidikan**: Pie chart kualifikasi pendidikan yang diminta.
 
--   **💾 Manajemen Data**:
-    -   **Akumulasi Data**: Data hasil scraping akan terus ditambahkan (append) selama sesi aktif, memungkinkan Anda mengumpulkan data dari berbagai pencarian.
+-   **💾 Manajemen Data (Scrape, Accumulate, Clean)**:
+    -   **Akumulasi Data**: Data hasil scraping akan terus ditambahkan (append) selama sesi aktif, memungkinkan Anda mengumpulkan data dari berbagai pencarian (misal: Scrape "Python" di Loker.id lalu Scrape "Java" di Kalibrr).
     -   **Preview Data**: Lihat tabel preview data terbaru hasil scraping langsung di sidebar.
+    -   **Pembersihan Data Otomatis**: Fitur **"Bersihkan & Gabung Data"** untuk menghapus duplikasi (berdasarkan link atau nama perusahaan/posisi) dan menstandarisasi format data (gaji numerik, dll).
     -   **Upload CSV**: Kemampuan untuk mengupload dataset eksternal (CSV) untuk dianalisis bersamaan.
 
 ## 🛠️ Instalasi & Cara Menjalankan
