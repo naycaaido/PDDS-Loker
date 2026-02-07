@@ -138,9 +138,12 @@ def harvest_data(target_count, search_query=None):
     print(f"🚜 HARVESTER: Mencari minimal {target_count} link valid...")
     
     options = webdriver.ChromeOptions()
-    options.add_argument("--headless") 
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--headless=new")           # Use new headless mode (lighter)
+    options.add_argument("--disable-gpu")            # Essential for servers
+    options.add_argument("--no-sandbox")             # Required for root/docker
+    options.add_argument("--disable-dev-shm-usage")  # Prevents shared memory crashes
+    options.add_argument("--disable-extensions")     # Save memory
+    options.add_argument("--disable-infobars")
     driver = webdriver.Chrome(options=options)
     
     # Construct URL based on search
