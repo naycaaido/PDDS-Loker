@@ -1,4 +1,4 @@
-Perusahaan,Posisi,kategori_posisi,kota,gaji_angka,list_skill,pendidikan_clean,jenis_clean,provinsi
+Perusahaan,Posisi,kategori_posisi,kota,gaji_angka,list_skill,pendidikan,jenis,provinsi
 PT Lensung Technology Indonesia,Software Engineer (Back-end Engineer),Other,Jakarta Barat,10000000,"['golang', 'java', 'linux', 'mysql', 'networking', 'postgresql', 'spring boot']",Tidak Disebutkan,full time,DKI Jakarta
 "PT. BFI FINANCE INDONESIA, Tbk",Senior Fullstack Engineer,Fullstack Engineer,Tangerang District,,"['agile', 'angular', 'golang', 'javascript', 'react', 'redis', 'ui/ux', 'vue']",Tidak Disebutkan,full time,Banten
 Virtual Staff Indonesia,Xero Developer,Other,Jakarta Raya,,"['.net', 'c', 'c#', 'git', 'javascript', 'node.js', 'php', 'python']",Tidak Disebutkan,kontrak/temporer,DKI Jakarta

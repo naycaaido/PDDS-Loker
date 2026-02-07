@@ -5,6 +5,9 @@ import ast
 from collections import Counter
 import numpy as np
 import pydeck as pdk 
+from scrapping.kalibrr_script import run_scraper as run_scraper_kalibrr
+from scrapping.lokerid_script import run_scraper as run_scraper_lokerid
+import time 
 
 # --- 1. KONFIGURASI HALAMAN ---
 st.set_page_config(
@@ -73,6 +76,8 @@ def icon(icon_name):
     return f'<span class="material-icons">{icon_name}</span>'
 # --- 3. PERSIAPAN DATA ---
 
+# --- 3. PERSIAPAN DATA ---
+
 # A. DATABASE KOORDINAT
 koordinat_kota = {
     "Jakarta Raya": [-6.2088, 106.8456], "Jakarta Selatan": [-6.2615, 106.8106],
@@ -94,18 +99,105 @@ def get_lon(kota): return koordinat_kota.get(kota, [None, None])[1]
 
 # B. LOAD DATA
 @st.cache_data
-def load_data():
-    df = pd.read_csv("./data/data_loker_clean.csv")
-    df['list_skill'] = df['list_skill'].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else [])
-    df['pendidikan_clean'] = df['pendidikan_clean'].fillna("Tidak Disebutkan")
-    df['kota'] = df['kota'].fillna("Lokasi Lain")
-    return df
+def load_base_data():
+    try:
+        df = pd.read_csv("./data/data_loker_clean.csv")
+        return df
+    except FileNotFoundError:
+        return pd.DataFrame()
 
-try:
-    df = load_data()
-except FileNotFoundError:
-    st.error("❌ File data tidak ditemukan! Pastikan ada di folder 'data/'.")
+# Initialize Session State for extra data
+if 'scraped_data' not in st.session_state:
+    st.session_state.scraped_data = pd.DataFrame()
+if 'uploaded_data' not in st.session_state:
+    st.session_state.uploaded_data = pd.DataFrame()
+
+# --- SIDEBAR CONTROLS ---
+with st.sidebar:
+    st.markdown(f"## {icon('settings')} Pengaturan Data", unsafe_allow_html=True)
+    
+    # 1. Live Scraping
+    st.subheader("Live Scraping")
+    
+    # New: Website Selection
+    scrape_source = st.selectbox("Pilih Sumber Website:", ["Loker.id", "Kalibrr"])
+    
+    # New: Search Query
+    search_query = st.text_input("Kata Kunci (Opsional)", placeholder="Contoh: Python, Data Analyst...")
+    
+    target_scraping = st.number_input("Jumlah Data", min_value=1, max_value=50, value=5)
+    
+    if st.button("Mulai Scraping"):
+        with st.spinner(f"Sedang scraping {scrape_source} {f'dengan kata kunci `{search_query}`' if search_query else ''}..."):
+            
+            # Select Scraper Function
+            if scrape_source == "Loker.id":
+                new_data = run_scraper_lokerid(target_count=target_scraping, search_query=search_query)
+            else:
+                new_data = run_scraper_kalibrr(target_count=target_scraping, search_query=search_query)
+                
+            if not new_data.empty:
+                # Accumulate data: Concatenate old session state with new data
+                st.session_state.scraped_data = pd.concat([st.session_state.scraped_data, new_data], ignore_index=True)
+                
+                st.success(f"Berhasil mengambil {len(new_data)} data baru! Total sementara: {len(st.session_state.scraped_data)}")
+                
+                # --- PREVIEW DATA ---
+                with st.expander("🔍 Preview Hasil Scraping (Terbaru)", expanded=True):
+                    st.dataframe(new_data[['Perusahaan', 'Posisi', 'gaji_angka']], use_container_width=True, hide_index=True)
+            else:
+                st.warning("Gagal mengambil data atau tidak ada data baru.")
+
+
+    st.markdown("---")
+    
+    # 2. Upload CSV
+    st.subheader("Upload CSV")
+    uploaded_file = st.file_uploader("Upload file CSV", type=["csv"])
+    if uploaded_file is not None:
+        try:
+            temp_df = pd.read_csv(uploaded_file)
+            # Validasi Kolom
+            required_cols = {'Perusahaan', 'Posisi', 'kategori_posisi', 'kota', 'gaji_angka', 'list_skill', 'pendidikan', 'jenis', 'provinsi', 'link'}
+            if required_cols.issubset(temp_df.columns):
+                st.session_state.uploaded_data = temp_df
+                st.success(f"File valid! {len(temp_df)} data ditambahkan.")
+            else:
+                missing = required_cols - set(temp_df.columns)
+                st.error(f"Format salah! Kolom hilang: {missing}")
+        except Exception as e:
+            st.error(f"Error membaca file: {e}")
+
+    # Reset Data Button
+    if st.button("Reset Tambahan Data"):
+        st.session_state.scraped_data = pd.DataFrame()
+        st.session_state.uploaded_data = pd.DataFrame()
+        st.rerun()
+
+# C. COMBINE DATA
+base_df = load_base_data()
+if base_df.empty:
+    st.error("❌ File data utama (data_loker_clean.csv) tidak ditemukan!")
     st.stop()
+
+# Gabungkan data utama + scraped + uploaded
+df = pd.concat([base_df, st.session_state.scraped_data, st.session_state.uploaded_data], ignore_index=True)
+
+# Preprocessing ulang untuk data gabungan (terutama list_skill)
+# Karena data scraped/upload mungkin belum di-eval
+def clean_skill_column(x):
+    if isinstance(x, list): return x
+    if isinstance(x, str):
+        try:
+            return ast.literal_eval(x)
+        except:
+            return []
+    return []
+
+df['list_skill'] = df['list_skill'].apply(clean_skill_column)
+df['pendidikan'] = df['pendidikan'].fillna("Tidak Disebutkan") # Note: base has pendidikan, new data has pendidikan
+df['kota'] = df['kota'].fillna("Lokasi Lain")
+df['gaji_angka'] = pd.to_numeric(df['gaji_angka'], errors='coerce')
 
 # --- 4. HEADER & FILTER ---
 # GANTI st.title BIASA DENGAN MARKDOWN AGAR BISA PAKAI ICON
@@ -118,7 +210,7 @@ with st.container(border=True):
     
     kategori_list = sorted(df['kategori_posisi'].unique().tolist())
     provinsi_list = sorted(df['provinsi'].unique().tolist())
-    pendidikan_list = sorted(df['pendidikan_clean'].unique().tolist())
+    pendidikan_list = sorted(df['pendidikan'].unique().tolist())
 
     with c1:
         st.markdown(f"**{icon('assignment')} Posisi / Kategori**", unsafe_allow_html=True)
@@ -140,7 +232,7 @@ if not selected_pendidikan: selected_pendidikan = pendidikan_list
 filtered_df = df[
     (df['kategori_posisi'].isin(selected_kategori)) & 
     (df['provinsi'].isin(selected_provinsi)) &
-    (df['pendidikan_clean'].isin(selected_pendidikan))
+    (df['pendidikan'].isin(selected_pendidikan))
 ]
 
 st.markdown("---") 
@@ -322,7 +414,7 @@ with col_right:
         # Icon: school (Topi Wisuda)
         st.markdown(f"### {icon('school')} Kualifikasi Pendidikan", unsafe_allow_html=True)
 
-        edu_data = filtered_df['pendidikan_clean'].value_counts().reset_index()
+        edu_data = filtered_df['pendidikan'].value_counts().reset_index()
         edu_data.columns = ['Pendidikan', 'Jumlah']
 
         fig_edu = px.pie(edu_data, values='Jumlah', names='Pendidikan', hole=0.4)
@@ -335,13 +427,13 @@ st.markdown(f"### {icon('table_view')} Data Detail Lowongan", unsafe_allow_html=
 
 with st.expander("Klik untuk melihat tabel data lengkap", expanded=True):
     st.dataframe(
-        filtered_df[['Perusahaan', 'Posisi', 'kota', 'gaji_angka', 'jenis_clean']],
+        filtered_df[['Perusahaan', 'Posisi', 'kota', 'gaji_angka', 'jenis']],
         use_container_width=True,
         column_config={
             "Perusahaan": st.column_config.TextColumn("Perusahaan", width="medium"),
             "Posisi": st.column_config.TextColumn("Posisi", width="large"),
             "gaji_angka": st.column_config.NumberColumn("Gaji (IDR)", format="Rp %d"),
-            "jenis_clean": st.column_config.TextColumn("Jenis Kerja"),
+            "jenis": st.column_config.TextColumn("Jenis Kerja"),
             "kota": st.column_config.TextColumn("Lokasi"),
         },
         hide_index=True

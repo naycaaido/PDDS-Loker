@@ -1,5 +1,9 @@
 streamlit
 pandas
 plotly
-numpy
 pydeck
+numpy
+requests
+beautifulsoup4
+selenium
+lxml
