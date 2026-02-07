@@ -312,7 +312,7 @@ st.markdown("---")
 if 'map_theme' not in st.session_state: 
     st.session_state.map_theme = 'light'
 if 'view_mode_peta' not in st.session_state:
-    st.session_state.view_mode_peta = "3D Hexagon (Total)"
+    st.session_state.view_mode_peta = "Kepadatan Lowongan"
 
 # 2. Header Peta + Tombol Tema (Kolom disesuaikan jadi 2 saja)
 c_head, c_btn = st.columns([7, 1]) # Ratio 7:1 agar tombol ada di ujung kanan
@@ -322,7 +322,7 @@ with c_head:
 
 with c_btn:
     # Tombol Tema
-    if st.button("Tema", icon=":material/contrast:", use_container_width=True):
+    if st.button("Tema Peta", icon=":material/contrast:", use_container_width=True):
         st.session_state.map_theme = 'dark' if st.session_state.map_theme == 'light' else 'light'
         st.rerun()
 
@@ -349,9 +349,9 @@ map_data['lon_jitter'] = map_data['lon'].apply(lambda x: apply_jitter(x))
 # Gunakan session_state sebagai value dan on_change untuk update
 view_mode = st.radio(
     "Pilih Tampilan Peta:", 
-    ["3D Hexagon (Total)", "Scatter Plot (Detail)"], 
+    ["Kepadatan Lowongan", "Sebaran Kategori"], 
     horizontal=True,
-    index=0 if st.session_state.view_mode_peta == "3D Hexagon (Total)" else 1,
+    index=0 if st.session_state.view_mode_peta == "Kepadatan Lowongan" else 1,
     key="view_mode_radio",
     on_change=lambda: setattr(st.session_state, 'view_mode_peta', st.session_state.view_mode_radio)
 )
@@ -361,7 +361,7 @@ center_java = {"lat": -7.35, "lon": 110.00}
 # 5. Render Peta (gunakan st.session_state.view_mode_peta)
 if not map_data.empty:
     with st.container(border=True):
-        if st.session_state.view_mode_peta == "3D Hexagon (Total)":
+        if st.session_state.view_mode_peta == "Kepadatan Lowongan":
             data_3d = map_data.groupby(['kota', 'lat', 'lon'])['Jumlah'].sum().reset_index()
             view_state = pdk.ViewState(latitude=-7.2, longitude=110.0, zoom=6.5, pitch=50)
             
