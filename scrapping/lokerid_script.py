@@ -224,7 +224,12 @@ def parse_salary_average(text):
 def harvest_data(max_pages, search_query=None):
     print(f"🚜 HARVESTING: Mengambil data dari {max_pages} halaman...")
     
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Referer': 'https://www.loker.id/',
+        'Accept-Language': 'en-US,en;q=0.9'
+    }
     harvested_items = []
     
     # Base URL Determination
@@ -304,7 +309,12 @@ def harvest_data(max_pages, search_query=None):
 # --- 4. TAHAP 2: PROCESSING ---
 def process_single_item(item):
     url = item['link']
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Referer': 'https://www.loker.id/',
+        'Accept-Language': 'en-US,en;q=0.9'
+    }
     
     try:
         # PENTING: Loker.id bisa memblokir jika terlalu agresif, gunakan sleep jika perlu di dalam thread
