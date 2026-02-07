@@ -6,7 +6,6 @@ from collections import Counter
 import numpy as np
 import pydeck as pdk 
 from scrapping.kalibrr_script import run_scraper as run_scraper_kalibrr
-from scrapping.lokerid_script import run_scraper as run_scraper_lokerid
 import time 
 import warnings
 
@@ -124,8 +123,8 @@ with st.sidebar:
     # 1. Live Scraping
     st.subheader("Live Scraping")
     
-    # New: Website Selection
-    scrape_source = st.selectbox("Pilih Sumber Website:", ["Loker.id", "Kalibrr"])
+    # Website Selection (Fixed to Kalibrr)
+    scrape_source = "Kalibrr"
     
     # New: Search Query
     search_query = st.text_input("Kata Kunci (Opsional)", placeholder="Contoh: Python, Data Analyst...")
@@ -136,10 +135,7 @@ with st.sidebar:
         with st.spinner(f"Sedang scraping {scrape_source} {f'dengan kata kunci `{search_query}`' if search_query else ''}..."):
             
             # Select Scraper Function
-            if scrape_source == "Loker.id":
-                new_data = run_scraper_lokerid(target_count=target_scraping, search_query=search_query)
-            else:
-                new_data = run_scraper_kalibrr(target_count=target_scraping, search_query=search_query)
+            new_data = run_scraper_kalibrr(target_count=target_scraping, search_query=search_query)
                 
             if not new_data.empty:
                 # Accumulate data: Concatenate old session state with new data
